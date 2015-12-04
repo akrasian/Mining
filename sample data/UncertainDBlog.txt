@@ -1,0 +1,33 @@
+
+ccu<1> UFgrowth UncertainDB.txt 1.0
+===== UF-growth TDB=UncertainDB.txt minsup=1.0 =====
+
+FP1: 1 (2.70)
+FP1: 5 (2.16)
+FP2: 4 5 (1.56)
+FP3: 1 4 5 (1.40)
+FP2: 1 5 (1.94)
+FP1: 4 (2.21)
+FP2: 1 4 (1.94)
+FP1: 3 (2.53)
+FP2: 2 3 (1.51)
+FP1: 2 (2.64)
+
+Total runtime is *** sec. ***.*** msec
+
+|L1| = 5
+|L2| = 4
+|L3| = 1
+|L4| = 0
+|L5| = 0
+|L6| = 0
+|L7| = 0
+|L8| = 0
+|L9| = 0
+|L10| = 0
+
+|FPs| = 10
+
+numNodes = *** (in global tree), *** (in all trees)
+
+===== UF-growth TDB=UncertainDB.txt minsup=1.0: Completed =====
