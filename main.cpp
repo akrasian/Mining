@@ -9,12 +9,19 @@
 
 using namespace std;
 
-//~ const char * data = "tsv input/simple_short.tsv";
 //~ const char * data = "tsv/1k5L.tsv";
-const char * data = "tsv/retail.tsv";
 
-int numTransactions = 88163;
-int minsup = 10000;
+
+//~ const char * data = "tsv/retail.tsv";
+
+//For these datasets, the bottleneck is candidate generation and superset testing.. So many frequent to compare with.
+//~ const char * data = "tsv/simple_mushroom.tsv";
+//~ const char * data = "tsv/simple_short.tsv";
+
+
+int numTransactions = 0;
+//~ int minsup = 10000;
+int minsup = 200;
 int rareminsup = 100;
 
 typedef set< int > ItemSet;
@@ -27,14 +34,40 @@ inline bool subset (ItemSet b, ItemSet a){
 //io functions:
 string printSet(ItemSet nums){
 	string res = "{";
+	int len = nums.size(); //number of elements in itemset
+	int i = 0;
+	
 	for (auto v = nums.begin(); v != nums.end(); v++){
 		res += to_string(*v);
-		res += ",";
+		if (++i != len)
+			res += ",";
 	}
 	return res + "}";
 }
 
+void printSuperSet(const SuperSet& s, std::ofstream& out){
+	for (auto i: s){
+		out << printSet(i);
+	}
+}
+
+
 ifstream input;
+
+int getNumTransactions(){
+	if (input.is_open())
+		input.close();
+	input.open(data, ifstream::in);
+	string line;
+	
+	int num;
+	getline(input, line);//discard first line.
+	istringstream parser(line);
+	parser >> num;
+	
+	input.close();
+	return num;
+}
 
 ItemSet transactionToSet(string line){
 	ItemSet res;
@@ -104,7 +137,16 @@ ItemSet setUnion(ItemSet b, ItemSet a){
 SuperSet genCandidates (SuperSet frequent){
 	SuperSet res;
 	
+	//sum i = 1 to n (i) == n(n+1)/2
+	double possibleCombos = frequent.size() * (frequent.size() - 1) /2;
+	
+	int counter = 0;
+	//Estimate number of steps total from transactionCount * candidateCount
+	cout <<"Generating candidates, max number of candidates: "<<possibleCombos << endl;
+	
 	for (auto i = frequent.begin(); i != frequent.end(); i++){
+		
+		//Iterate starting at i + 1...
 		auto j = i; 
 		++j;
 		
@@ -112,16 +154,21 @@ SuperSet genCandidates (SuperSet frequent){
 			//create union
 			ItemSet z = setUnion(*i,*j);
 			
+			if (++counter % 10000 == 0){
+				cout <<"Generated so far: "<<counter / possibleCombos * 100<<"%                  \r";
+			}
+			
 			if (z.size() != i->size()+1) //only want to make supersets ONE bigger.
 				continue;
 			
 			bool infrequent_subset = false;
 			//create subsets for pruning phase:
-			for (auto i = z.begin(); i!= z.end(); i++){
+			for (auto remove_item = z.begin(); remove_item!= z.end(); remove_item++){
 				ItemSet temp = z;
-				temp.erase(temp.find(*i));
+				temp.erase(temp.find(*remove_item));
 				
-				if (frequent.find(temp) == frequent.end()){
+				//Subset is rare if temp != A, temp != B, and temp not any other frequent subset of them combined.
+				if ((*i) != temp  && (*j) != temp && frequent.find(temp) == frequent.end()){
 					infrequent_subset = true;
 					break;
 				}
@@ -136,6 +183,8 @@ SuperSet genCandidates (SuperSet frequent){
 		}
 	}
 	
+	cout <<"Potentially Frequent Candidates after pruning: "<<res.size() << endl;
+	
 	return res;
 }
 
@@ -145,15 +194,27 @@ SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
 	
 	resetTransactionFile();
 	ItemSet transaction = getTransaction();
+	
+	int counter = 0;
+	//Estimate number of steps total from transactionCount * candidateCount
+	
+	double testsRequired = numTransactions * candidates.size();
+	cout <<"Subset tests required: "<<testsRequired << endl;
+	
 	while (! transaction.empty()){
-		
 		for (auto candidate : candidates){
+			if (++counter % 10000 == 0){
+				cout <<"Subset tests so far: "<<counter / testsRequired * 100<<"%                  \r";
+			}
+			
 			if ( subset (candidate, transaction)){
 				support[candidate]++;
 			}
 		}
 		transaction = getTransaction();
 	}
+	
+	cout <<"                                                                                                            ";
 	
 	SuperSet result;
 	
@@ -168,41 +229,47 @@ SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
 	return result;
 }
 
-void printSuperSet(const SuperSet& s, std::ofstream& out){
-	for (auto i: s){
-		out << printSet(i) << endl;
-	}
-}
-
 int main(){
-	SuperSet verified = getL1();
+	cout <<endl << "Transaction File: " << data << endl;
+	numTransactions = getNumTransactions();
+	minsup = 10;
+	//~ minsup = numTransactions * 0.50;
+	rareminsup = numTransactions * 0.01;
 	
-	cout << verified.size() << " singletons have minimal support"<<endl;
+	cout <<"Number of transactions: "<<numTransactions<<endl;
+	cout <<"Minimum support       : "<<minsup<<endl;
+	cout <<"Rare minimum support  : "<<rareminsup<<endl;
 	
+	//~ exit(0);
 	ofstream out;
 	out.open("out.output", ofstream::out);
 	
+	SuperSet verified = getL1();
+	out <<"Frequent Singletons: "<< verified.size() <<endl;
+	printSuperSet(verified, out);
+	
+	cout << verified.size() << " singletons have the minimum support"<<endl;
+	
 	int level = 2;
 	while (verified.size() > 0){
-		cout <<"Level "<<level << endl;
-		
+		cout <<"\nLevel "<<level << endl;
+			
 		cout <<verified.size() << " itemsets to make candidates from." << endl;
 		SuperSet candidates = genCandidates(verified);
-		cout <<candidates.size() << " candidates to test" << endl;
 		
 		SuperSet rareGenerators;
 		verified = verify(candidates, rareGenerators);
 		
-		out <<"\n\nLevel "<<level << " frequent itemsets"<<endl;
+		out <<"\n\nLevel "<<level << " frequent itemsets: "<< verified.size()<<endl;
 		printSuperSet(verified, out);
 		
-		out <<"\n\nLevel "<<level << " minimal rare itemsets"<<endl;
+		out <<"\n\nLevel "<<level << " minimal rare itemsets: "<< rareGenerators.size()<<endl;
 		printSuperSet(rareGenerators, out);
 		//save result to output file:
 		
 		level++;
 	}
-	cout <<"verified has no more transactions" << endl;
+	cout <<endl << "verified has no more transactions" << endl;
 	
 	out.close();
 	
