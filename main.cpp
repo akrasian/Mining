@@ -9,20 +9,21 @@
 
 using namespace std;
 
+//This one works just fine
 //~ const char * data = "tsv/1k5L.tsv";
 
-
-//~ const char * data = "tsv/retail.tsv";
+//This one works just fine
+const char * data = "tsv/retail.tsv";
 
 //For these datasets, the bottleneck is candidate generation and superset testing.. So many frequent to compare with.
 //~ const char * data = "tsv/simple_mushroom.tsv";
 //~ const char * data = "tsv/simple_short.tsv";
 
 
-int numTransactions = 0;
-//~ int minsup = 10000;
-int minsup = 200;
-int rareminsup = 100;
+int numTransactions;
+int minsup;
+int rareminsup;
+ifstream input;
 
 typedef set< int > ItemSet;
 typedef set< ItemSet > SuperSet;
@@ -51,8 +52,6 @@ void printSuperSet(const SuperSet& s, std::ofstream& out){
 	}
 }
 
-
-ifstream input;
 
 int getNumTransactions(){
 	if (input.is_open())
@@ -232,9 +231,10 @@ SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
 int main(){
 	cout <<endl << "Transaction File: " << data << endl;
 	numTransactions = getNumTransactions();
-	minsup = 10;
+	//~ minsup = 10;
 	//~ minsup = numTransactions * 0.50;
-	rareminsup = numTransactions * 0.01;
+	minsup = numTransactions * 0.009;
+	rareminsup = numTransactions * 0.001;
 	
 	cout <<"Number of transactions: "<<numTransactions<<endl;
 	cout <<"Minimum support       : "<<minsup<<endl;
@@ -269,10 +269,9 @@ int main(){
 		
 		level++;
 	}
-	cout <<endl << "verified has no more transactions" << endl;
 	
 	out.close();
 	
-	cout <<"All processing complete"<<endl;
+	cout <<endl <<"All processing complete"<<endl;
 	return 0;
 }
