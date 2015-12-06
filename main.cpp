@@ -233,7 +233,7 @@ int main(){
 	numTransactions = getNumTransactions();
 	//~ minsup = 10;
 	//~ minsup = numTransactions * 0.50;
-	minsup = numTransactions * 0.009;
+	minsup = numTransactions * 0.02;
 	rareminsup = numTransactions * 0.001;
 	
 	cout <<"Number of transactions: "<<numTransactions<<endl;
