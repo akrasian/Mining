@@ -6,6 +6,7 @@
 #include <vector>
 #include <set>
 #include <algorithm>
+#include <climits>
 
 using namespace std;
 
@@ -13,7 +14,9 @@ using namespace std;
 //~ const char * data = "tsv/1k5L.tsv";
 
 //This one works just fine
-const char * data = "tsv/retail.tsv";
+const char * dataFile;
+const char * outputFile;
+//~ const char * data = "tsv/retail.tsv";
 
 //For these datasets, the bottleneck is candidate generation and superset testing.. So many frequent to compare with.
 //~ const char * data = "tsv/simple_mushroom.tsv";
@@ -26,7 +29,9 @@ int rareminsup;
 ifstream input;
 
 typedef set< int > ItemSet;
-typedef set< ItemSet > SuperSet;
+//~ typedef set< ItemSet > SuperSet;
+typedef map< ItemSet, int > SuperSet;
+//~ typedef map<ItemSet, int> SetSupport;
 
 inline bool subset (ItemSet b, ItemSet a){
 	return includes(a.begin(), a.end(), b.begin(), b.end());
@@ -48,15 +53,17 @@ string printSet(ItemSet nums){
 
 void printSuperSet(const SuperSet& s, std::ofstream& out){
 	for (auto i: s){
-		out << printSet(i);
+		//First element is the superset
+		out << "(" << printSet(i.first) << ":" << i.second << ")";
 	}
+	out << endl;
 }
 
 
 int getNumTransactions(){
 	if (input.is_open())
 		input.close();
-	input.open(data, ifstream::in);
+	input.open(dataFile, ifstream::in);
 	string line;
 	
 	int num;
@@ -82,7 +89,7 @@ ItemSet transactionToSet(string line){
 void resetTransactionFile(){
 	if (input.is_open())
 		input.close();
-	input.open(data, ifstream::in);
+	input.open(dataFile, ifstream::in);
 	string line;
 	
 	getline(input, line);//discard first line.
@@ -101,25 +108,34 @@ ItemSet getTransaction(){
 
 
 // generate L1 from database
-SuperSet getL1(){
-	map<int, int> support;
+SuperSet getL1(SuperSet & rareGenerators){
+	rareGenerators.clear();
+	//~ map<int, int> support;
+	SuperSet L1candidates;
+	SuperSet L1;
 	
 	resetTransactionFile();
 	ItemSet transaction = getTransaction();
+	
 	while (! transaction.empty()){
 		
 		for (auto v = transaction.begin(); v != transaction.end(); v++){
-			support[*v]++;
+			ItemSet temp;
+			temp.insert(*v);
+			//~ support[*v]++;
+			L1candidates[temp]++;
+			//~ L1candidates[*v]++;
 		}
 		transaction = getTransaction();
 	}
 	
-	SuperSet L1;
-	for(auto i = support.begin(); i!= support.end(); ++i){
-		if (i->second > minsup){
-			ItemSet x;
-			x.insert(i->first);
-			L1.insert(x);
+	for(auto i = L1candidates.begin(); i!= L1candidates.end(); ++i){
+		if (i->second >= minsup){
+			//~ ItemSet x;
+			//~ x.insert(i->first);
+			L1[i->first] = i->second;
+		} else if (i->second > rareminsup){
+			rareGenerators[i->first] = i->second;
 		}
 	}
 	
@@ -133,6 +149,16 @@ ItemSet setUnion(ItemSet b, ItemSet a){
 	return c;
 }
 
+/* Given the previous frequent n-length itemsets, produce all n+1 length length itemset candidates.
+ * During this process, there will be three types of candidates generated:
+ * Those where at least one subset is infrequent (These cannot be frequent, nor minimally rare)
+ * Those where no subset is frequent may be frequent themselves, or they may be infrequent.
+ * If no subset is infrequent, but they are frequent, this is a minimally rare itemset.
+ * But to tell frequent and minimally rare itemsets apart, we need to return them both and test
+ * them against the dataset.
+ * 
+ * This function also tracks the minimum support of all frequent subsets, in order to determine later if a mRI is a generator.
+ */
 SuperSet genCandidates (SuperSet frequent){
 	SuperSet res;
 	
@@ -151,34 +177,42 @@ SuperSet genCandidates (SuperSet frequent){
 		
 		for (j; j != frequent.end(); j++){
 			//create union
-			ItemSet z = setUnion(*i,*j);
+			ItemSet a = i->first;
+			ItemSet b = j->first;
+			
+			ItemSet c = setUnion(a,b);
 			
 			if (++counter % 10000 == 0){
 				cout <<"Generated so far: "<<counter / possibleCombos * 100<<"%                  \r";
 			}
 			
-			if (z.size() != i->size()+1) //only want to make supersets ONE bigger.
+			if (c.size() != a.size()+1) //only want to make supersets ONE bigger.
 				continue;
 			
 			bool infrequent_subset = false;
 			//create subsets for pruning phase:
-			for (auto remove_item = z.begin(); remove_item!= z.end(); remove_item++){
-				ItemSet temp = z;
+			
+			int lowest_pred_support = INT_MAX;
+			
+			for (auto remove_item = c.begin(); remove_item!= c.end(); remove_item++){
+				ItemSet temp = c;
 				temp.erase(temp.find(*remove_item));
 				
-				//Subset is rare if temp != A, temp != B, and temp not any other frequent subset of them combined.
-				if ((*i) != temp  && (*j) != temp && frequent.find(temp) == frequent.end()){
+				//Check minimal support amongst all predecessors:
+				int pred_support = frequent[temp];
+				
+				if (pred_support < minsup){
 					infrequent_subset = true;
 					break;
+				} else if (pred_support < lowest_pred_support){
+					lowest_pred_support = pred_support;
 				}
 				//check all subsets are themselves frequent...
 			}
 			
 			if (!infrequent_subset){
-				res.insert(z); //no evidence this set is not frequent yet.
-			} else {
+				res[c] = lowest_pred_support; //no evidence this set is not frequent yet.
 			}
-			
 		}
 	}
 	
@@ -187,9 +221,16 @@ SuperSet genCandidates (SuperSet frequent){
 	return res;
 }
 
-SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
+/*
+ * Given a pruned set of candidates, we need to check which are truly frequent in the database, and which are rare.
+ * For normal pattern mining the rare ones would be discarded, but for rare pattern mining the minimal rare patterns
+ * must also be saved and returned.
+ */
+SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators, SuperSet & superRareGenerators){
+	//Always empty the passed map first.
 	rareGenerators.clear();
-	map<ItemSet, int> support;
+	superRareGenerators.clear();
+	map<ItemSet, int> trueSupport;
 	
 	resetTransactionFile();
 	ItemSet transaction = getTransaction();
@@ -206,8 +247,8 @@ SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
 				cout <<"Subset tests so far: "<<counter / testsRequired * 100<<"%                  \r";
 			}
 			
-			if ( subset (candidate, transaction)){
-				support[candidate]++;
+			if ( subset (candidate.first, transaction)){
+				trueSupport[candidate.first]++;
 			}
 		}
 		transaction = getTransaction();
@@ -217,54 +258,84 @@ SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
 	
 	SuperSet result;
 	
-	for (auto i: support){
+	for (auto i: trueSupport){
+		ItemSet curr = i.first;
+		int pred_min_sup = candidates.at(curr);
+		//Minimal rare generators must have lower support than all proper subsets. Candidates tracks the lowest support of all subsets.
+		
 		if (i.second >= minsup){
-			result.insert(i.first);
-		} else if (i.second <= minsup && i.second > rareminsup){
-			rareGenerators.insert(i.first);
+			result[i.first] = i.second;
+		} else if (i.second <= pred_min_sup && i.second > rareminsup){
+			rareGenerators[i.first] = i.second;
+		} else {
+			superRareGenerators[i.first] = i.second;
 		}
 	}
 	
 	return result;
 }
 
-int main(){
-	cout <<endl << "Transaction File: " << data << endl;
-	numTransactions = getNumTransactions();
-	//~ minsup = 10;
-	//~ minsup = numTransactions * 0.50;
-	minsup = numTransactions * 0.02;
-	rareminsup = numTransactions * 0.001;
+int main(int argc, char** argv){
+	printf("Number of arguments: %d\n", argc-1);
+	if (argc < 5){
+		printf("Program expects four arguments, <input tsv> <output file> <minsup ratio> <rareminsup integer>\n");
+		printf("Example: ./main tsv/retail.tsv output.txt 0.02 1\n");
+		printf("Quitting\n\n");
+		exit(1);
+	}
 	
-	cout <<"Number of transactions: "<<numTransactions<<endl;
-	cout <<"Minimum support       : "<<minsup<<endl;
-	cout <<"Rare minimum support  : "<<rareminsup<<endl;
+	float minsup_ratio = atof(argv[3]);
+	float rareminsup = atoi(argv[4]);
+	dataFile = argv[1];
+	outputFile = argv[2];
 	
 	//~ exit(0);
-	ofstream out;
-	out.open("out.output", ofstream::out);
+	cout <<endl << "Transaction File       : " << dataFile << endl;
+	cout        << "Output File            : "<<outputFile<<endl;
+	numTransactions = getNumTransactions();
 	
-	SuperSet verified = getL1();
-	out <<"Frequent Singletons: "<< verified.size() <<endl;
+	minsup = numTransactions * minsup_ratio;
+	
+	cout <<"Number of transactions : "<<numTransactions<<endl;
+	cout <<"Minimum support        : "<<minsup<<endl;
+	cout <<"Rare minimum support   : "<<rareminsup<<endl;
+	
+	ofstream out;
+	out.open(outputFile, ofstream::out);
+	
+	SuperSet rareGenerators;
+	SuperSet verified = getL1(rareGenerators);
+	out <<"1 sets: frequent itemsets: "<< verified.size() <<endl;
 	printSuperSet(verified, out);
+	
+	out <<"1 sets: minimal rare generators: "<< rareGenerators.size()<<endl;
+	printSuperSet(rareGenerators, out);
+	
+	out <<"1 sets: super rare generators: 0"<<endl;
+	out <<endl; //no super rare generators for singletons...
+	out << "-----"<<endl; //marks start of next level.
 	
 	cout << verified.size() << " singletons have the minimum support"<<endl;
 	
 	int level = 2;
 	while (verified.size() > 0){
-		cout <<"\nLevel "<<level << endl;
+		cout <<"Level "<<level << endl;
 			
 		cout <<verified.size() << " itemsets to make candidates from." << endl;
 		SuperSet candidates = genCandidates(verified);
 		
-		SuperSet rareGenerators;
-		verified = verify(candidates, rareGenerators);
+		SuperSet superRareGenerators;
+		verified = verify(candidates, rareGenerators, superRareGenerators);
 		
-		out <<"\n\nLevel "<<level << " frequent itemsets: "<< verified.size()<<endl;
+		out <<level << " sets: frequent itemsets: "<< verified.size()<<endl;
 		printSuperSet(verified, out);
 		
-		out <<"\n\nLevel "<<level << " minimal rare itemsets: "<< rareGenerators.size()<<endl;
+		out <<level << " sets: minimal rare generators: "<< rareGenerators.size()<<endl;
 		printSuperSet(rareGenerators, out);
+		
+		out <<level << " sets: super rare generators: "<< superRareGenerators.size()<<endl;
+		printSuperSet(superRareGenerators, out);
+		out << "-----"<<endl;
 		//save result to output file:
 		
 		level++;
