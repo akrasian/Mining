@@ -59,7 +59,6 @@ void printSuperSet(const SuperSet& s, std::ofstream& out){
 	out << endl;
 }
 
-
 int getNumTransactions(){
 	if (input.is_open())
 		input.close();
@@ -226,10 +225,9 @@ SuperSet genCandidates (SuperSet frequent){
  * For normal pattern mining the rare ones would be discarded, but for rare pattern mining the minimal rare patterns
  * must also be saved and returned.
  */
-SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators, SuperSet & superRareGenerators){
+SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
 	//Always empty the passed map first.
 	rareGenerators.clear();
-	superRareGenerators.clear();
 	map<ItemSet, int> trueSupport;
 	
 	resetTransactionFile();
@@ -265,10 +263,8 @@ SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators, SuperSe
 		
 		if (i.second >= minsup){
 			result[i.first] = i.second;
-		} else if (i.second <= pred_min_sup && i.second > rareminsup){
+		} else if (i.second <= pred_min_sup){ // && i.second > rareminsup
 			rareGenerators[i.first] = i.second;
-		} else {
-			superRareGenerators[i.first] = i.second;
 		}
 	}
 	
@@ -305,14 +301,12 @@ int main(int argc, char** argv){
 	
 	SuperSet rareGenerators;
 	SuperSet verified = getL1(rareGenerators);
-	out <<"1 sets: frequent itemsets: "<< verified.size() <<endl;
+	out <<"1 sets: frequent generators: "<< verified.size() <<endl;
 	printSuperSet(verified, out);
 	
 	out <<"1 sets: minimal rare generators: "<< rareGenerators.size()<<endl;
 	printSuperSet(rareGenerators, out);
 	
-	out <<"1 sets: super rare generators: 0"<<endl;
-	out <<endl; //no super rare generators for singletons...
 	out << "-----"<<endl; //marks start of next level.
 	
 	cout << verified.size() << " singletons have the minimum support"<<endl;
@@ -324,17 +318,14 @@ int main(int argc, char** argv){
 		cout <<verified.size() << " itemsets to make candidates from." << endl;
 		SuperSet candidates = genCandidates(verified);
 		
-		SuperSet superRareGenerators;
-		verified = verify(candidates, rareGenerators, superRareGenerators);
+		verified = verify(candidates, rareGenerators);
 		
-		out <<level << " sets: frequent itemsets: "<< verified.size()<<endl;
+		out <<level << " sets: frequent generators: "<< verified.size()<<endl;
 		printSuperSet(verified, out);
 		
 		out <<level << " sets: minimal rare generators: "<< rareGenerators.size()<<endl;
 		printSuperSet(rareGenerators, out);
 		
-		out <<level << " sets: super rare generators: "<< superRareGenerators.size()<<endl;
-		printSuperSet(superRareGenerators, out);
 		out << "-----"<<endl;
 		//save result to output file:
 		
