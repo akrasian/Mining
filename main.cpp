@@ -10,28 +10,15 @@
 
 using namespace std;
 
-//This one works just fine
-//~ const char * data = "tsv/1k5L.tsv";
-
-//This one works just fine
 const char * dataFile;
 const char * outputFile;
-//~ const char * data = "tsv/retail.tsv";
-
-//For these datasets, the bottleneck is candidate generation and superset testing.. So many frequent to compare with.
-//~ const char * data = "tsv/simple_mushroom.tsv";
-//~ const char * data = "tsv/simple_short.tsv";
-
-
 int numTransactions;
 int minsup;
 int rareminsup;
 ifstream input;
 
 typedef set< int > ItemSet;
-//~ typedef set< ItemSet > SuperSet;
 typedef map< ItemSet, int > SuperSet;
-//~ typedef map<ItemSet, int> SetSupport;
 
 inline bool subset (ItemSet b, ItemSet a){
 	return includes(a.begin(), a.end(), b.begin(), b.end());
@@ -51,7 +38,7 @@ string printSet(ItemSet nums){
 	return res + "}";
 }
 
-void printSuperSet(const SuperSet& s, std::ofstream& out){
+void printSuperSet(const SuperSet& s, std::ostream& out){
 	for (auto i: s){
 		//First element is the superset
 		out << "(" << printSet(i.first) << ":" << i.second << ")";
@@ -109,7 +96,6 @@ ItemSet getTransaction(){
 // generate L1 from database
 SuperSet getL1(SuperSet & rareGenerators){
 	rareGenerators.clear();
-	//~ map<int, int> support;
 	SuperSet L1candidates;
 	SuperSet L1;
 	
@@ -121,21 +107,16 @@ SuperSet getL1(SuperSet & rareGenerators){
 		for (auto v = transaction.begin(); v != transaction.end(); v++){
 			ItemSet temp;
 			temp.insert(*v);
-			//~ support[*v]++;
 			L1candidates[temp]++;
-			//~ L1candidates[*v]++;
 		}
 		transaction = getTransaction();
 	}
 	
 	for(auto i = L1candidates.begin(); i!= L1candidates.end(); ++i){
-		if (i->second >= minsup){
-			//~ ItemSet x;
-			//~ x.insert(i->first);
+		if (i->second >= minsup)
 			L1[i->first] = i->second;
-		} else if (i->second > rareminsup){
+		else
 			rareGenerators[i->first] = i->second;
-		}
 	}
 	
 	return L1;
@@ -202,8 +183,9 @@ SuperSet genCandidates (SuperSet frequent){
 				
 				if (pred_support < minsup){
 					infrequent_subset = true;
-					break;
-				} else if (pred_support < lowest_pred_support){
+				}
+				
+				if (pred_support < lowest_pred_support){
 					lowest_pred_support = pred_support;
 				}
 				//check all subsets are themselves frequent...
@@ -215,7 +197,7 @@ SuperSet genCandidates (SuperSet frequent){
 		}
 	}
 	
-	cout <<"Potentially Frequent Candidates after pruning: "<<res.size() << endl;
+	cout <<"Potentially Frequent Generates after pruning: "<<res.size() << endl;
 	
 	return res;
 }
@@ -252,9 +234,9 @@ SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
 		transaction = getTransaction();
 	}
 	
-	cout <<"                                                                                                            ";
+	cout <<"                                                                                                            \n";
 	
-	SuperSet result;
+	SuperSet frequent;
 	
 	for (auto i: trueSupport){
 		ItemSet curr = i.first;
@@ -262,13 +244,13 @@ SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
 		//Minimal rare generators must have lower support than all proper subsets. Candidates tracks the lowest support of all subsets.
 		
 		if (i.second >= minsup){
-			result[i.first] = i.second;
-		} else if (i.second <= pred_min_sup){ // && i.second > rareminsup
+			frequent[i.first] = i.second;
+		} else if (i.second < pred_min_sup){ // && i.second > rareminsup
 			rareGenerators[i.first] = i.second;
 		}
 	}
 	
-	return result;
+	return frequent;
 }
 
 int main(int argc, char** argv){
