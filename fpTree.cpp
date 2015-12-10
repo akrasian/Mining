@@ -14,12 +14,10 @@ const char * dataFile;
 const char * outputFile;
 int numTransactions;
 int minsup;
-int rareminsup;
 ifstream input;
 
 typedef set< int > ItemSet;
 typedef map< ItemSet, int > SuperSet;
-typedef set < ItemSet > ZeroGenerators;
 
 inline bool subset (ItemSet b, ItemSet a){
 	return includes(a.begin(), a.end(), b.begin(), b.end());
@@ -233,8 +231,6 @@ SuperSet verify (const SuperSet & candidates){
 	SuperSet frequent;
 	
 	for (auto i: trueSupport){
-		//Minimal rare generators must have lower support than all proper subsets. Candidates tracks the lowest support of all subsets.
-		
 		if (i.second >= minsup){
 			frequent[i.first] = i.second;
 		}
@@ -253,7 +249,7 @@ void apriori(){
 	
 	out << "-----"<<endl; //marks start of next level.
 	
-	cout << verified.size() << " singletons have the minimum support"<<endl;
+	cout << verified.size() << " singletons have the minimum support"<<endl <<endl;
 	
 	int level = 2;
 	while (verified.size() > 0){
@@ -264,7 +260,7 @@ void apriori(){
 		
 		verified = verify(candidates);
 		
-		out <<level << " sets: frequent generators: "<< verified.size()<<endl;
+		out <<level << " sets: frequent itemsets : "<< verified.size()<<endl;
 		printSuperSet(verified, out);
 		
 		out << "-----"<<endl;
@@ -278,15 +274,14 @@ void apriori(){
 
 int main(int argc, char** argv){
 	printf("Number of arguments: %d\n", argc-1);
-	if (argc < 5){
-		printf("Program expects four arguments, <input tsv> <output file> <minsup ratio> <rareminsup integer>\n");
-		printf("Example: ./main tsv/retail.tsv output.txt 0.02 1\n");
+	if (argc < 4){
+		printf("Program expects three arguments, <input tsv> <output file> <minsup ratio>\n");
+		printf("Example: ./main tsv/retail.tsv output.txt 0.02\n");
 		printf("Quitting\n\n");
 		exit(1);
 	}
 	
 	float minsup_ratio = atof(argv[3]);
-	float rareminsup = atoi(argv[4]);
 	dataFile = argv[1];
 	outputFile = argv[2];
 	
@@ -299,7 +294,6 @@ int main(int argc, char** argv){
 	
 	cout <<"Number of transactions : "<<numTransactions<<endl;
 	cout <<"Minimum support        : "<<minsup<<endl;
-	cout <<"Rare minimum support   : "<<rareminsup<<endl;
 	
 	apriori();
 	
