@@ -74,6 +74,24 @@ ItemSet getTransaction(){
 	}
 }
 
+void generateSubsets(vector< pair < int, int> > frequent){
+	//~ if(location >= 0){
+		//~ if(addElement){
+			//~ prefix = intToLetter(frequent[location].first) + ", " + prefix;
+			//~ support = (frequent[location].second < support);
+			//~ //This is always decreasing so should be fine to not check.
+		//~ }
+		//~ 
+		//~ if (location == 0){
+			//~ cout << prefix << ":" << support << endl;
+		//~ } else {
+			//~ --location;
+			//~ permute(prefix, support, frequent, location, 0);
+			//~ permute(prefix, support, frequent, location, 1);
+		//~ }
+		//~ 
+	//~ }
+}
 
 class Node {
 public:
@@ -213,29 +231,12 @@ public:
 		delete (root);
 	}
 	
-	void permute(string prefix, vector<int> frequent, int location,  int addElement){
-		if(location >= 0){
-			if(addElement){
-				//~ sprintf(prefix, "%s,%d", prefix, frequent[location]);
-				prefix = intToLetter(frequent[location]) + ", " + prefix;
-			}
-			
-			if (location == 0){
-				cout << prefix << endl;
-			} else {
-				--location;
-				permute(prefix, frequent, location, 0);
-				permute(prefix, frequent, location, 1);
-			}
-			
-		}
-	}
 	
 	//ASSUMPTION - already checked this tree was a list.
 	void createFrequentPatterns(){
 		Node * temp = root;
 		
-		vector<int> frequent;
+		vector< pair < int, int> > frequent;
 		int frequentItems = 0;
 		
 		while (true){
@@ -246,7 +247,7 @@ public:
 			} else if (children_size == 0){
 				break;
 			} else {
-				cout <<"Adding..."<<endl;
+				//~ cout <<"Adding..."<<endl;
 				auto child = *(temp->children.begin());
 				temp = child.second;
 				
@@ -254,19 +255,21 @@ public:
 					break; //no more freq children to fidn here.
 				} else {
 					frequentItems++;
-					frequent.push_back(child.first);
+					pair <int, int> itemSupport;
+					itemSupport.first = child.first;
+					itemSupport.second = child.second->count;
+					frequent.push_back(itemSupport);
 				}
 			}
 		}
 		
-		cout <<"Permuting"<<endl;
-		cout <<"Found "<<frequentItems<< " frequent items to make strings from"<<endl;
-		permute("", frequent, frequent.size()-1, 0);
-		permute("", frequent, frequent.size()-1, 1);
+		//~ cout <<"Permuting"<<endl;
+		//~ cout <<"Found "<<frequentItems<< " frequent items to make strings from"<<endl;
+		generateSubsets(frequent);
 		
 	}
 	
-	void conditional(string prefix){
+	void conditional(){
 		//Instances tracks all variables used in this tree:
 		if(instances.size() > 0){
 			for (auto itemNodeSet : instances){
@@ -279,19 +282,22 @@ public:
 					temp.insert(pathUp, count);
 				}
 				
-				string state = prefix + intToLetter(itemNodeSet.first);
+				//~ string state = prefix + intToLetter(itemNodeSet.first);
 				
-				cout <<"\n\nConditional on "<< state << endl;
-				temp.print();
-				cout << endl;
+				//~ cout <<"\n\nConditional on "<< state << endl;
+				//~ temp.print();
+				//~ cout << endl;
 				
 				if (temp.isList()){
-					cout <<"Tree is a list, create all permutations."<<endl;
+					//~ cout <<"Tree is a list, create all permutations."<<endl;
 					temp.createFrequentPatterns();
 				} else {
-					cout <<"Recursing."<<endl;
-					temp.conditional(state);
+					temp.conditional();
 				}
+				//~ else {
+					//~ cout <<"Recursing."<<endl;
+				
+				//~ }
 				
 			}
 		}
@@ -367,8 +373,8 @@ Tree parseDB(){
 
 void fpgrowth(){
 	Tree DB = parseDB();
-	DB.print();
-	DB.conditional("");
+	//~ DB.print();
+	DB.conditional();
 }
 
 int main(int argc, char** argv){
