@@ -18,6 +18,9 @@ int minsup;
 ifstream input;
 
 typedef set< int > ItemSet;
+typedef pair <int, int> Tuple;
+
+set <string> frequentSets;
 
 int getNumTransactions(){
 	if (input.is_open())
@@ -74,7 +77,7 @@ ItemSet getTransaction(){
 	}
 }
 
-void generateSubsets_r (string result, int pos, size_t max_support, vector< pair < int, int> > & frequent){
+void generateSubsets_r (string result, int pos, size_t max_support, vector< Tuple > & frequent){
 	
 	size_t currSup = frequent[pos].second;
 	size_t currItem = frequent[pos].first;
@@ -90,11 +93,10 @@ void generateSubsets_r (string result, int pos, size_t max_support, vector< pair
 	if (pos <= 0){
 		if (result != ""){
 			result = result + "}:" + to_string(max_support);
-			cout << "R"<< result <<endl;
+			frequentSets.insert(result);
 		}
 		result2 = result2 + "}:"+ to_string(currSup);
-		cout << "L"<< result2 <<endl;
-		
+		frequentSets.insert(result2);
 	} else {
 		--pos;
 		generateSubsets_r(result,  pos, max_support, frequent);
@@ -103,19 +105,9 @@ void generateSubsets_r (string result, int pos, size_t max_support, vector< pair
 		
 		generateSubsets_r(result2, pos, minSupport, frequent);
 	}
-	
-	
 }
 
-void generateSubsets(vector< pair < int, int> > & frequent){
-	cout <<"Called with list of len "<<frequent.size()<<endl;
-	
-	cout << "{";
-	for(auto i: frequent){
-		cout << i.first << ":"<< i.second << ", ";
-	}
-	cout <<"}\n\n"<<endl;
-	
+void generateSubsets(vector< Tuple > & frequent){
 	generateSubsets_r("", frequent.size()-1, UINT_MAX, frequent);
 }
 
@@ -262,7 +254,7 @@ public:
 	void createFrequentPatterns(){
 		Node * temp = root;
 		
-		vector< pair < int, int> > frequent;
+		vector< Tuple > frequent;
 		int frequentItems = 0;
 		
 		while (true){
@@ -281,7 +273,7 @@ public:
 					break; //no more freq children to fidn here.
 				} else {
 					frequentItems++;
-					pair <int, int> itemSupport;
+					Tuple itemSupport;
 					itemSupport.first = child.first;
 					itemSupport.second = child.second->count;
 					frequent.push_back(itemSupport);
@@ -316,11 +308,11 @@ public:
 	}
 };
 
-bool comparePairVal (pair<int, int> a, pair<int, int> b){
+bool comparePairVal (Tuple a, Tuple b){
 	return a.first > b.first;
 }
 
-bool comparePairFreq (pair<int, int> a, pair<int, int> b){
+bool comparePairFreq (Tuple a, Tuple b){
 	return a.second < b.second;
 }
 
@@ -365,13 +357,13 @@ Tree parseDB(){
 	transaction = getTransaction();
 	
 	while (! transaction.empty()){
-		vector<pair<int, int>> pairs;
+		vector<Tuple> pairs;
 		
 		for (auto v = transaction.begin(); v != transaction.end(); v++){
 			//Create a list of <value, frequency> from transaction.
 			auto f= frequency.find(*v);
 			if (f != frequency.end()){
-				pair<int, int> x;
+				Tuple x;
 				x.first = *v;
 				x.second = f->second;
 				pairs.push_back(x);
@@ -402,28 +394,41 @@ void fpgrowth(){
 }
 
 void testGenerateSubsets(){
-	pair <int, int> a;
+	Tuple a;
 	a.first = 193;
 	a.second = 1;
 	
-	pair <int, int> b;
+	Tuple b;
 	b.first = 904;
 	b.second = 2;
 	
-	pair <int, int> c;
+	Tuple c;
 	c.first = 909;
 	c.second = 3;
 	
-	pair <int, int> d;
+	Tuple d;
 	d.first = 248;
 	d.second = 4;
 	
-	vector< pair <int, int > > frequent;
+	vector< Tuple > frequent;
 	frequent.push_back(a);
 	frequent.push_back(b);
 	frequent.push_back(c);
 	frequent.push_back(d);
 	generateSubsets(frequent);
+}
+
+void saveResults(string outputFile){
+	ofstream output;
+	output.open(outputFile, ofstream::out);
+	
+	output <<"Number of frequent patterns found : "<<frequentSets.size()<<endl;
+	
+	for (string s : frequentSets){
+		output << s << endl;
+	}
+	
+	output.close();
 }
 
 int main(int argc, char** argv){
@@ -440,7 +445,6 @@ int main(int argc, char** argv){
 	dataFile = argv[1];
 	outputFile = argv[2];
 	
-	//~ exit(0);
 	cout <<endl << "Transaction File       : " << dataFile << endl;
 	cout        << "Output File            : "<<outputFile<<endl;
 	numTransactions = getNumTransactions();
@@ -451,7 +455,8 @@ int main(int argc, char** argv){
 	cout <<"Minimum support        : "<<minsup<<endl;
 	
 	fpgrowth();
-	//~ apriori();
+	
+	saveResults(outputFile);
 	
 	cout <<endl <<"All processing complete"<<endl;
 	return 0;
