@@ -86,6 +86,7 @@ public:
 	Node (Node * p, int count_start){
 		parent = p;
 		count = count_start;
+		id = -1;
 	}
 	
 	~Node(){
@@ -95,39 +96,54 @@ public:
 	}
 	
 	void insert(list<int> & transaction, map <int, set <Node *> > & instances){
-		cout <<"Got insert in "<<id<<endl;
-		count++;
+		if (transaction.size() < 1) return;
 		
-		if (transaction.size() == 1){
-			id = transaction.front();
-			transaction.pop_front();
+		//~ cout <<"Got insert in "<<id<<endl;
+		int child_id = transaction.front();
+		transaction.pop_front();
+		
+		auto f= children.find(child_id);
+		
+		Node * child_ptr = nullptr;
+		if (f == children.end()){
+			child_ptr = new Node(this, 0);
+			child_ptr->id = child_id;
+			child_ptr->count = 0;
 			
-		} else if(transaction.size() > 1){
-			//~ cout <<"Here"<<endl;
+			children[child_id] = child_ptr;
+			instances[child_id].insert(child_ptr);
+		} else {
+			child_ptr = children[child_id];
 			
-			id = transaction.front();
-			transaction.pop_front();
-			
-			int child = transaction.front();
-			//~ auto p = 
-			auto f= children.find(child);
-			
-			Node * child_ptr = nullptr;
-			if (f == children.end()){
-				cout <<"Creating CHild"<<endl;
-				//Children get this as the parent.
-				child_ptr = new Node(this, 0);
-				children[child] = child_ptr;
-				instances[child].insert(child_ptr);
-			} else {
-				child_ptr = children[child];
-			}
-			
-			
-			if(child_ptr != nullptr){
-				child_ptr->insert(transaction, instances);
-			}
 		}
+		
+		child_ptr->count++;
+		child_ptr->insert(transaction, instances);
+	}
+	
+	void insert(list<int> & transaction, map <int, set <Node *> > & instances, int repetitions){
+		if (transaction.size() < 1) return;
+		
+		int child_id = transaction.front();
+		transaction.pop_front();
+		
+		auto f= children.find(child_id);
+		
+		Node * child_ptr = nullptr;
+		if (f == children.end()){
+			child_ptr = new Node(this, 0);
+			child_ptr->id = child_id;
+			child_ptr->count = 0;
+			
+			children[child_id] = child_ptr;
+			instances[child_id].insert(child_ptr);
+		} else {
+			child_ptr = children[child_id];
+			
+		}
+		
+		child_ptr->count+= repetitions;
+		child_ptr->insert(transaction, instances, repetitions);
 	}
 	
 	void print (int depth){
@@ -150,7 +166,6 @@ public:
 			return count;
 		
 		parent->climb_r(branch);
-		
 		return count;
 	}
 };
@@ -162,12 +177,32 @@ public:
 	
 	Tree(){
 		root = new Node(nullptr, 0);
-		cout <<"Making tree"<<endl;
 	}
 	
 	void insert(list<int> & transaction){
-		transaction.push_front(0);
 		root->insert(transaction, instances);
+	}
+	
+	void insert(list<int> & transaction, int repetitions){
+		root->insert(transaction, instances, repetitions);
+	}
+	
+	bool isList(){
+		Node * temp = root;
+		
+		while (true){
+			int children_size = temp->children.size();
+			if(children_size > 1){
+				return false;
+			} else if (children_size == 0){
+				return true;
+			} else {
+				auto child = *(temp->children.begin());
+				temp = child.second;
+			}
+		}
+		
+		
 	}
 	
 	void print (){
@@ -178,35 +213,89 @@ public:
 		delete (root);
 	}
 	
-	void conditional(){
-		auto itemNodeSet = instances[1];
-		
-		//~ for (auto itemNodeSet : instances){
-			//Generate the conditional DB containing this value:
-			Tree temp;
+	void permute(string prefix, vector<int> frequent, int location,  int addElement){
+		if(location >= 0){
+			if(addElement){
+				//~ sprintf(prefix, "%s,%d", prefix, frequent[location]);
+				prefix = intToLetter(frequent[location]) + ", " + prefix;
+			}
 			
-			//~ for(auto itemNode : itemNodeSet.second){
-			for(auto itemNode : itemNodeSet){
-				//Iterate over leafs with this value
-				list<int> pathUp;
-				int count = itemNode->climb(pathUp);
-				
-				cout << intToLetter(itemNode->id);
-				cout << "A count == "<< count << endl;
+			if (location == 0){
+				cout << prefix << endl;
+			} else {
+				--location;
+				permute(prefix, frequent, location, 0);
+				permute(prefix, frequent, location, 1);
+			}
+			
+		}
+	}
 	
-				for( int i = 0; i< count; i++){
-					cout <<"INserting"<<endl;
-					temp.insert(pathUp);
+	//ASSUMPTION - already checked this tree was a list.
+	void createFrequentPatterns(){
+		Node * temp = root;
+		
+		vector<int> frequent;
+		int frequentItems = 0;
+		
+		while (true){
+			int children_size = temp->children.size();
+			
+			if(children_size > 1){
+				printf("ERROR, should only be called on linear trees.\n");
+			} else if (children_size == 0){
+				break;
+			} else {
+				cout <<"Adding..."<<endl;
+				auto child = *(temp->children.begin());
+				temp = child.second;
+				
+				if(child.second->count < minsup){
+					break; //no more freq children to fidn here.
+				} else {
+					frequentItems++;
+					frequent.push_back(child.first);
+				}
+			}
+		}
+		
+		cout <<"Permuting"<<endl;
+		cout <<"Found "<<frequentItems<< " frequent items to make strings from"<<endl;
+		permute("", frequent, frequent.size()-1, 0);
+		permute("", frequent, frequent.size()-1, 1);
+		
+	}
+	
+	void conditional(string prefix){
+		//Instances tracks all variables used in this tree:
+		if(instances.size() > 0){
+			for (auto itemNodeSet : instances){
+				//Generate the conditional DB containing this value:
+				Tree temp;
+				
+				for(auto itemNode : itemNodeSet.second){
+					list<int> pathUp;
+					int count = itemNode->climb(pathUp);
+					temp.insert(pathUp, count);
+				}
+				
+				string state = prefix + intToLetter(itemNodeSet.first);
+				
+				cout <<"\n\nConditional on "<< state << endl;
+				temp.print();
+				cout << endl;
+				
+				if (temp.isList()){
+					cout <<"Tree is a list, create all permutations."<<endl;
+					temp.createFrequentPatterns();
+				} else {
+					cout <<"Recursing."<<endl;
+					temp.conditional(state);
 				}
 				
 			}
-			
-			
-			cout <<"Conditional on "<<intToLetter(1) << endl;
-			temp.print();
-			cout << endl;
-			
-		//~ }
+		}
+		
 	}
 };
 
@@ -268,10 +357,7 @@ Tree parseDB(){
 			sortedItems.push_back(pairs[i].first);
 		}
 		
-		cout <<"Inserting"<<endl;
 		result.insert(sortedItems);
-		
-		cout << endl << endl;
 		transaction = getTransaction();
 		
 	}
@@ -282,7 +368,7 @@ Tree parseDB(){
 void fpgrowth(){
 	Tree DB = parseDB();
 	DB.print();
-	DB.conditional();
+	DB.conditional("");
 }
 
 int main(int argc, char** argv){
