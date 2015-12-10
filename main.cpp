@@ -144,27 +144,33 @@ SuperSet genCandidates (SuperSet frequent){
 	SuperSet res;
 	
 	//sum i = 1 to n (i) == n(n+1)/2
-	double possibleCombos = frequent.size() * (frequent.size() - 1) /2;
+	size_t length = frequent.size();
+	size_t possibleCombos = length * length /2;
 	
-	int counter = 0;
+	size_t j_counter = 0;
+	size_t i_counter = 0;
 	//Estimate number of steps total from transactionCount * candidateCount
-	cout <<"Generating candidates, max number of candidates: "<<possibleCombos << endl;
+	cout <<"Generating candidates\nMax Number of Candidates: "<<possibleCombos << endl;
 	
-	for (auto i = frequent.begin(); i != frequent.end(); i++){
+	for (auto i = frequent.begin(); i != --frequent.end(); i++){
 		
 		//Iterate starting at i + 1...
 		auto j = i; 
 		++j;
 		
+		++i_counter;
+		
 		for (j; j != frequent.end(); j++){
+			++j_counter;
+			
 			//create union
 			ItemSet a = i->first;
 			ItemSet b = j->first;
 			
 			ItemSet c = setUnion(a,b);
 			
-			if (++counter % 10000 == 0){
-				cout <<"Generated so far: "<<counter / possibleCombos * 100<<"%                  \r";
+			if (j_counter % 10000 == 0){
+				cout <<"Generated so far        : "<<j_counter <<" " << i_counter << "\r";
 			}
 			
 			if (c.size() != a.size()+1) //only want to make supersets ONE bigger.
@@ -216,16 +222,16 @@ SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
 	resetTransactionFile();
 	ItemSet transaction = getTransaction();
 	
-	int counter = 0;
+	size_t counter = 0;
 	//Estimate number of steps total from transactionCount * candidateCount
 	
-	double testsRequired = numTransactions * candidates.size();
+	size_t testsRequired = numTransactions * candidates.size();
 	cout <<"Subset tests required: "<<testsRequired << endl;
 	
 	while (! transaction.empty()){
 		for (auto candidate : candidates){
 			if (++counter % 10000 == 0){
-				cout <<"Subset tests so far: "<<counter / testsRequired * 100<<"%                  \r";
+				cout <<"Subset tests so far  : "<<counter <<"                  \r";
 			}
 			
 			if ( subset (candidate.first, transaction)){
@@ -254,7 +260,7 @@ SuperSet verify (const SuperSet & candidates, SuperSet & rareGenerators){
 	return frequent;
 }
 
-void frequent(){
+void apriori(){
 	ofstream out;
 	out.open(outputFile, ofstream::out);
 	
@@ -294,213 +300,6 @@ void frequent(){
 	out.close();
 }
 
-
-
-//Returns array of all strings in s containing none of the chars in tokens.
-vector<string> split (const string& s, string tokens){
-	vector<string> res;
-	
-	string curr = "";
-	for (char c : s){
-		bool istoken = false;
-		for (char d : tokens){
-			if (d == c)
-				istoken = true;
-		}
-		if (!istoken){
-			curr += c;
-		} else {
-			if (curr.length() > 0){
-				res.push_back(curr);
-				curr = "";
-			}
-		}
-	}
-	
-	if (curr.length() > 0){
-		res.push_back(curr);
-		curr = "";
-	}
-	return res;
-}
-
-SuperSet parseSuperSet(string line){
-	SuperSet result;
-	
-	vector<string> itemSupportSets = split(line, "()");
-	for (auto x: itemSupportSets){
-		vector<string> itemsetVector = split(x, "{},:");
-		
-		ItemSet curr;
-		
-		for(int i = 0; i<itemsetVector.size()-1; ++i){
-			int val;
-			string item = itemsetVector[i];
-			istringstream parser(item);
-			parser >> val;
-			curr.insert(val);
-		}
-		
-		int support;
-		string item = itemsetVector[itemsetVector.size()-1];
-		istringstream parser(item);
-		parser >> support;
-		
-		result[curr] = support;
-		
-	}
-	
-	return result;
-}
-
-vector<SuperSet> parseRareFile(string rareFile){
-	ifstream input;
-	input.open(rareFile, ifstream::in);
-	string line;
-	
-	vector<SuperSet> result;
-	SuperSet empty;
-	result.push_back(empty);
-	
-	int linenum = 0;
-	while (getline(input, line)){
-		if (linenum %5 == 2){
-			
-			cout << "Line num: " << linenum << endl << "Line "<<line<<endl;
-		} if (linenum %5 == 1){
-			//~ cout <<"Frequent"<<endl;
-			//~ cout << line << endl;
-			//~ SuperSet x = parseSuperSet(line);
-			//~ printSuperSet(x, std::cout);
-		} else if (linenum % 5 == 3){
-			cout <<"Rare"<<endl;
-			SuperSet x = parseSuperSet(line);
-			
-			result.push_back(x);
-		}
-		linenum++;
-	}
-	
-	input.close();
-	//~ return num;
-	return result;
-}
-
-ItemSet getAttributes(){
-	ItemSet attributes;
-	ItemSet transaction;
-	resetTransactionFile();
-	
-	do {
-		transaction = getTransaction();
-		attributes.insert(transaction.begin(), transaction.end());
-		
-	} while (! transaction.empty());
-	
-	return attributes;
-}
-
-void checkSupport (SuperSet & candidates){
-	for (auto candidate: candidates){
-		candidate.second = 0;
-	}
-	
-	resetTransactionFile();
-	ItemSet transaction = getTransaction();
-	
-	int counter = 0;
-	//Estimate number of steps total from transactionCount * candidateCount
-	
-	double testsRequired = numTransactions * candidates.size();
-	cout <<"Subset tests required: "<<testsRequired << endl;
-	
-	while (! transaction.empty()){
-		for (auto candidate : candidates){
-			if (++counter % 10000 == 0){
-				cout <<"Subset tests so far: "<<counter / testsRequired * 100<<"%                  \r";
-			}
-			
-			if ( subset (candidate.first, transaction)){
-				candidate.second++;
-			}
-		}
-		transaction = getTransaction();
-	}
-	
-	cout <<"                                                                                                            \n";
-}
-
-void arima(){
-	ItemSet S = getAttributes();
-	
-	int i = 1;
-	
-	vector<SuperSet> rareGeneratorsbyOrder = parseRareFile(outputFile);
-	SuperSet & singletons = rareGeneratorsbyOrder[1];
-	
-	//~ printSuperSet(singletons, cout);
-	
-	cout <<"Number of rare generators: "<<singletons.size() << endl;
-	cout <<"Number of singletons: "<<S.size() << endl;
-	
-	return;
-	
-	SuperSet rareCandidates;
-	
-	for (auto r : singletons){
-		for (auto x : S){
-			ItemSet U = r.first;
-			U.insert(x);
-			
-			if (U.size() ==  i+1){
-				//Check if this is in
-				rareCandidates[U] == 0;
-			}
-		}
-		//None of these will have parents in the rare generators to start.
-	}
-	
-	checkSupport(rareCandidates);
-	
-	ZeroGenerators zeros;
-	SuperSet rarePairs;
-	
-	for (auto candidate: rareCandidates){
-		if (candidate.second == 0){
-			zeros.insert(candidate.first);
-		} else {
-			rarePairs[candidate.first] = candidate.second;
-		}
-	}
-	
-	cout <<"Number of rare pairs: "<<rarePairs.size() << endl;
-	
-	//Generate all supersets of length i+1
-		//For r in Rarei
-		//C = all possible supersets of r
-		//for c in C, if c has superset in the Zeros
-		//delete c from candidates
-		
-	
-	//~ for (auto x : singletons){
-		//~ if (x.second == 0){
-			//~ cout <<
-		//~ }
-	//~ }
-	
-	//Vector[i-1] contains all rare generators of length i.
-	
-	//~ int num = 1;
-	//~ for (auto x : rareGeneratorsbyOrder){
-		//~ cout << num << " sets"<<endl;
-		//~ printSuperSet(x, std::cout);
-		//~ 
-		//~ ++num;
-	//~ }
-	
-	//~ cout <<"S = "<<printSet(S) << endl;
-}
-
 int main(int argc, char** argv){
 	printf("Number of arguments: %d\n", argc-1);
 	if (argc < 5){
@@ -526,18 +325,7 @@ int main(int argc, char** argv){
 	cout <<"Minimum support        : "<<minsup<<endl;
 	cout <<"Rare minimum support   : "<<rareminsup<<endl;
 	
-#define FREQUENT
-#define ARIMA
-
-#ifdef FREQUENT
-	frequent();
-#endif
-
-#ifdef ARIMA
-	arima();
-#endif
-	
-	
+	apriori();
 	
 	cout <<endl <<"All processing complete"<<endl;
 	return 0;
