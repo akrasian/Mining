@@ -74,23 +74,49 @@ ItemSet getTransaction(){
 	}
 }
 
-void generateSubsets(vector< pair < int, int> > frequent){
-	//~ if(location >= 0){
-		//~ if(addElement){
-			//~ prefix = intToLetter(frequent[location].first) + ", " + prefix;
-			//~ support = (frequent[location].second < support);
-			//~ //This is always decreasing so should be fine to not check.
-		//~ }
-		//~ 
-		//~ if (location == 0){
-			//~ cout << prefix << ":" << support << endl;
-		//~ } else {
-			//~ --location;
-			//~ permute(prefix, support, frequent, location, 0);
-			//~ permute(prefix, support, frequent, location, 1);
-		//~ }
-		//~ 
-	//~ }
+void generateSubsets_r (string result, int pos, size_t max_support, vector< pair < int, int> > & frequent){
+	
+	size_t currSup = frequent[pos].second;
+	size_t currItem = frequent[pos].first;
+	
+	string result2;
+	//Case - adding this element to the string.
+	if(result == ""){
+		result2 = "{" + std::to_string(currItem) + ":" + std::to_string(currSup);
+	} else {
+		result2 = result + ", " + std::to_string(currItem) + ":" + std::to_string(currSup);
+	}
+	
+	if (pos <= 0){
+		if (result != ""){
+			result = result + "}:" + to_string(max_support);
+			cout << "R"<< result <<endl;
+		}
+		result2 = result2 + "}:"+ to_string(currSup);
+		cout << "L"<< result2 <<endl;
+		
+	} else {
+		--pos;
+		generateSubsets_r(result,  pos, max_support, frequent);
+		
+		size_t minSupport = currSup < max_support? currSup : max_support;
+		
+		generateSubsets_r(result2, pos, minSupport, frequent);
+	}
+	
+	
+}
+
+void generateSubsets(vector< pair < int, int> > & frequent){
+	cout <<"Called with list of len "<<frequent.size()<<endl;
+	
+	cout << "{";
+	for(auto i: frequent){
+		cout << i.first << ":"<< i.second << ", ";
+	}
+	cout <<"}\n\n"<<endl;
+	
+	generateSubsets_r("", frequent.size()-1, UINT_MAX, frequent);
 }
 
 class Node {
@@ -165,7 +191,7 @@ public:
 	}
 	
 	void print (int depth){
-		std::cout << std::string(depth, ' ') << intToLetter(id) << ": "<<count << endl;
+		std::cout << std::string(depth, ' ') << id << ": "<<count << endl;
 		for (auto child : children){
 			(child.second)->print(depth+3);
 		}
@@ -232,7 +258,7 @@ public:
 	}
 	
 	
-	//ASSUMPTION - already checked this tree was a list.
+	//ASSUMPTION - already checked this tree was a list. Never on branching trees.
 	void createFrequentPatterns(){
 		Node * temp = root;
 		
@@ -263,17 +289,14 @@ public:
 			}
 		}
 		
-		//~ cout <<"Permuting"<<endl;
-		//~ cout <<"Found "<<frequentItems<< " frequent items to make strings from"<<endl;
-		generateSubsets(frequent);
-		
+		if (frequent.size() > 0){
+			generateSubsets(frequent);
+		}
 	}
 	
 	void conditional(){
-		//Instances tracks all variables used in this tree:
 		if(instances.size() > 0){
 			for (auto itemNodeSet : instances){
-				//Generate the conditional DB containing this value:
 				Tree temp;
 				
 				for(auto itemNode : itemNodeSet.second){
@@ -282,23 +305,11 @@ public:
 					temp.insert(pathUp, count);
 				}
 				
-				//~ string state = prefix + intToLetter(itemNodeSet.first);
-				
-				//~ cout <<"\n\nConditional on "<< state << endl;
-				//~ temp.print();
-				//~ cout << endl;
-				
 				if (temp.isList()){
-					//~ cout <<"Tree is a list, create all permutations."<<endl;
 					temp.createFrequentPatterns();
 				} else {
 					temp.conditional();
 				}
-				//~ else {
-					//~ cout <<"Recursing."<<endl;
-				
-				//~ }
-				
 			}
 		}
 		
@@ -311,6 +322,19 @@ bool comparePairVal (pair<int, int> a, pair<int, int> b){
 
 bool comparePairFreq (pair<int, int> a, pair<int, int> b){
 	return a.second < b.second;
+}
+
+string printSet(ItemSet nums){
+	string res = "{";
+	int len = nums.size(); //number of elements in itemset
+	int i = 0;
+	
+	for (auto v = nums.begin(); v != nums.end(); v++){
+		res += to_string(*v);
+		if (++i != len)
+			res += ",";
+	}
+	return res + "}";
 }
 
 Tree parseDB(){
@@ -377,7 +401,33 @@ void fpgrowth(){
 	DB.conditional();
 }
 
+void testGenerateSubsets(){
+	pair <int, int> a;
+	a.first = 193;
+	a.second = 1;
+	
+	pair <int, int> b;
+	b.first = 904;
+	b.second = 2;
+	
+	pair <int, int> c;
+	c.first = 909;
+	c.second = 3;
+	
+	pair <int, int> d;
+	d.first = 248;
+	d.second = 4;
+	
+	vector< pair <int, int > > frequent;
+	frequent.push_back(a);
+	frequent.push_back(b);
+	frequent.push_back(c);
+	frequent.push_back(d);
+	generateSubsets(frequent);
+}
+
 int main(int argc, char** argv){
+	
 	printf("Number of arguments: %d\n", argc-1);
 	if (argc < 4){
 		printf("Program expects three arguments, <input tsv> <output file> <minsup ratio>\n");
